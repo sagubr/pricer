@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"target": "ES2024",
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"rootDir": "./src",
+		"baseUrl": "./src",
+		"paths": {
+			"@/*": ["*"]
+		},
+		"outDir": "./dist",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true
+	},
+	"include": ["src"]
+}
