@@ -45,8 +45,6 @@ export const userSchema = z.object({
 	email: z.email(),
 	username: z.string().nullable(),
 	name: z.string().nullable(),
-	ssoProvider: z.string().nullable(),
-	ssoExternalId: z.string().nullable(),
 	loginMethod: z.enum(["email", "username", "both"]),
 	isActive: z.boolean(),
 	permissionVersion: z.uuid(),

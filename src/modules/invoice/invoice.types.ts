@@ -7,6 +7,22 @@ export const parseInvoiceSchema = z.object({
 
 export type InvoiceParseRequest = z.infer<typeof parseInvoiceSchema>;
 
+export const invoiceJobStatusEnumSchema = z.enum([
+	"queued",
+	"parsing",
+	"processing",
+	"completed",
+	"failed",
+]);
+
+export type InvoiceJobStatus = z.infer<typeof invoiceJobStatusEnumSchema>;
+
+export const invoiceJobStatusParamsSchema = z.object({
+	jobId: z.string().min(1),
+});
+
+export type InvoiceJobStatusParams = z.infer<typeof invoiceJobStatusParamsSchema>;
+
 export const invoiceIssuerSchema = z.object({
 	name: z.string(),
 	cnpj: z.string(),
@@ -66,4 +82,29 @@ export type InvoiceParseResponse = z.infer<typeof parseInvoiceResponseSchema>;
 export interface InvoiceProcessingResponse {
 	invoice: InvoiceParseResponse;
 	normalization: ProductNormalizerResponse;
+}
+
+export interface EnqueueInvoiceResponse {
+	jobId: string;
+	status: InvoiceJobStatus;
+}
+
+export interface InvoiceJobStatusResponse {
+	jobId: string;
+	sourceUrl: string;
+	status: InvoiceJobStatus;
+	receiptId?: number;
+	errorMessage?: string;
+	updatedAt: string;
+}
+
+export interface InvoiceParseJobPayload {
+	jobId: string;
+	url: string;
+}
+
+export interface InvoiceProcessJobPayload {
+	jobId: string;
+	url: string;
+	invoice: InvoiceParseResponse;
 }

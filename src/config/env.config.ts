@@ -10,21 +10,22 @@ const envSchema = z.object({
 	NODE_ENV: z
 		.enum(["development", "production", "staging"])
 		.default("development"),
-	SERVICE_NAME: z.string().default('quality-supplier'),
+	SERVICE_NAME: z.string().default('pricer-api'),
 	LOG_LEVEL: z.string().default("info"),
 	CACHE_PROVIDER: z.enum(["redis", "node-cache"]).default("node-cache"),
 	CACHE_ADMIN_TOKEN: z.string().min(32, "CACHE_ADMIN_TOKEN deve ter pelo menos 32 caracteres"),
-	DB_HOST: z.string().min(1, "DB_HOST é obrigatório"),
-	DB_PORT: z.coerce.number().default(3306),
-	DB_USER: z.string().min(1, "DB_USER é obrigatório"),
-	DB_PASS: z.string(),
-	DB_NAME: z.string().min(1, "DB_NAME é obrigatório"),
 	DATABASE_URL: z.url("DATABASE_URL deve ser uma URL válida").optional(),
+	DB_SSL: z.coerce.boolean().default(false),
+	DB_SSL_REJECT_UNAUTHORIZED: z.coerce.boolean().default(false),
 	DB_CONNECTION_LIMIT: z.coerce.number().default(20),
-	DB_ACQUIRE_TIMEOUT: z.coerce.number().default(60000),
 	DB_TIMEOUT: z.coerce.number().default(60000),
+	EMBEDDING_API_URL: z.url("EMBEDDING_API_URL deve ser uma URL válida").optional(),
+	EMBEDDING_KEY: z.string().optional(),
+	EMBEDDING_DIMENSIONS: z.coerce.number().default(384),
 	REDIS_HOST: z.string().default("localhost"),
 	REDIS_PORT: z.coerce.number().default(6379),
+	REDIS_DB: z.coerce.number().default(0),
+	QUEUE_PREFIX: z.string().optional(),
 	RATE_LIMIT_MAX: z.coerce.number().default(100),
 	RATE_LIMIT_TIME_WINDOW: z.string().default("1 minute"),
 	JWT_SECRET: z.string().min(32, "JWT_SECRET deve ter pelo menos 32 caracteres"),
@@ -41,6 +42,7 @@ const envSchema = z.object({
 	EMAIL_BATCH_SIZE: z.coerce.number().default(10),
 	SENTRY_DSN: z.url("SENTRY_DSN deve ser uma URL válida").optional(),
 	GEMINI_API_KEY: z.string().optional(),
+	URL: z.url("URL deve ser uma URL válida").optional(),
 });
 
 export const env = envSchema.parse(process.env);

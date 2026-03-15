@@ -1,7 +1,12 @@
 import { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { invoiceController as controller } from "./invoice.controller";
-import { InvoiceParseRequest, parseInvoiceSchema } from "./invoice.types";
+import {
+	InvoiceJobStatusParams,
+	InvoiceParseRequest,
+	invoiceJobStatusParamsSchema,
+	parseInvoiceSchema,
+} from "./invoice.types";
 
 export default async function invoiceRouter(fastify: FastifyInstance) {
 	const app = fastify.withTypeProvider<ZodTypeProvider>();
@@ -17,5 +22,17 @@ export default async function invoiceRouter(fastify: FastifyInstance) {
 			},
 		},
 		(request, reply) => controller.parse(request, reply),
+	);
+
+	app.get<{ Params: InvoiceJobStatusParams }>(
+		"/jobs/:jobId",
+		{
+			schema: {
+				params: invoiceJobStatusParamsSchema,
+				tags: ["Invoices"],
+				description: "Consulta o status assíncrono do processamento da NFCe",
+			},
+		},
+		(request, reply) => controller.getStatus(request, reply),
 	);
 }

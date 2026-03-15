@@ -13,16 +13,9 @@ import {
 import { EmailAlreadyRegisteredError } from "./errors/auth.error";
 import { jwtService } from "./jwt/jwt.service";
 import { sessionService } from "./sessions/session.service";
-import { SsoHttpGateway } from "./sso/sso.gateway";
-import type { SsoGateway } from "./sso/sso.interface";
 
 class AuthService implements IAuthService {
 	private readonly SALT_ROUNDS = 10;
-	private readonly ssoGateway: SsoGateway;
-
-	constructor(ssoGateway: SsoGateway = new SsoHttpGateway()) {
-		this.ssoGateway = ssoGateway;
-	}
 
 	async login(input: LoginInput): Promise<LoginResponse> {
 		const user = await this.resolveUser(input);
@@ -61,19 +54,22 @@ class AuthService implements IAuthService {
 			this.SALT_ROUNDS,
 		);
 
-		const [result] = await db.insert(users).values({
-			email: input.email,
-			username: input.username || null,
-			name: input.name,
-			passwordHash,
-			loginMethod: input.loginMethod || "email",
-			isActive: true,
-		});
+		const [result] = await db
+			.insert(users)
+			.values({
+				email: input.email,
+				username: input.username || null,
+				name: input.name,
+				passwordHash,
+				loginMethod: input.loginMethod || "email",
+				isActive: true,
+			})
+			.returning({ id: users.id });
 
 		const [newUser] = await db
 			.select()
 			.from(users)
-			.where(eq(users.id, result.insertId))
+			.where(eq(users.id, result.id))
 			.limit(1);
 
 		return newUser;
@@ -125,7 +121,7 @@ class AuthService implements IAuthService {
 		const user = await this.findUser(input.emailOrUsername);
 
 		if (!user) {
-			return this.authenticateViaSsoOrFail(input);
+			throw new UnauthorizedError("Invalid credentials");
 		}
 
 		await this.authenticateExistingUser(user, input);
@@ -150,11 +146,6 @@ class AuthService implements IAuthService {
 		user: User,
 		input: LoginInput,
 	): Promise<void> {
-		if (user.ssoProvider) {
-			await this.authenticateSsoOrFail(input);
-			return;
-		}
-
 		await this.validateLocalPasswordOrFail(
 			input.password,
 			user.passwordHash,
@@ -230,52 +221,6 @@ class AuthService implements IAuthService {
 		if (!valid) {
 			throw new UnauthorizedError("Invalid credentials");
 		}
-	}
-
-	private async authenticateSsoOrFail(input: LoginInput): Promise<void> {
-		const result = await this.ssoGateway.authenticate(
-			input.emailOrUsername,
-			input.password,
-		);
-
-		if (!result) {
-			throw new UnauthorizedError("Invalid SSO credentials");
-		}
-	}
-
-	private async authenticateViaSsoOrFail(input: LoginInput): Promise<User> {
-		const result = await this.ssoGateway.authenticate(
-			input.emailOrUsername,
-			input.password,
-		);
-
-		if (!result) {
-			throw new UnauthorizedError("Invalid credentials");
-		}
-
-		return this.createUserFromSso(result);
-	}
-
-	private async createUserFromSso(ssoData: {
-		externalId: string;
-		email: string;
-		name: string;
-	}): Promise<User> {
-		const [result] = await db.insert(users).values({
-			email: ssoData.email,
-			name: ssoData.name,
-			ssoProvider: "corporate_sso",
-			ssoExternalId: ssoData.externalId,
-			isActive: true,
-		});
-
-		const [user] = await db
-			.select()
-			.from(users)
-			.where(eq(users.id, result.insertId))
-			.limit(1);
-
-		return user;
 	}
 
 	private sanitizeUser(user: User): Omit<User, "passwordHash"> {

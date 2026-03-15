@@ -22,15 +22,18 @@ class SessionService {
 
 		await this.enforceSessionLimit(input.userId);
 
-		const [result] = await db.insert(sessions).values({
-			userId: input.userId,
-			refreshTokenHash,
-			userAgent: input.userAgent,
-			ipAddress: input.ipAddress,
-			expiresAt,
-		});
+		const [result] = await db
+			.insert(sessions)
+			.values({
+				userId: input.userId,
+				refreshTokenHash,
+				userAgent: input.userAgent,
+				ipAddress: input.ipAddress,
+				expiresAt,
+			})
+			.returning({ id: sessions.id });
 
-		const sessionId = result.insertId;
+		const sessionId = result.id;
 
 		await db.insert(refreshTokens).values({
 			sessionId,

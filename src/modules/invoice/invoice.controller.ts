@@ -1,9 +1,11 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { IInvoiceController, IInvoiceService } from "./invoice.interface";
-
-import type { InvoiceParseRequest } from "./invoice.types";
+import type { IInvoiceService } from "./invoice.interface";
 import { response } from "@/shared/http/response";
 import { invoiceService } from "./invoice.service";
+import type {
+	InvoiceJobStatusParams,
+	InvoiceParseRequest,
+} from "./invoice.types";
 
 class InvoiceController {
 	constructor(private readonly service: IInvoiceService) {}
@@ -14,11 +16,23 @@ class InvoiceController {
 	) {
 		const { url } = request.body;
 
-		const result = await this.service.parse(url);
+		const result = await this.service.enqueueParse(url);
+
+		return reply
+			.status(202)
+			.send(response(result, "Nota fiscal enviada para processamento"));
+	}
+
+	async getStatus(
+		request: FastifyRequest<{ Params: InvoiceJobStatusParams }>,
+		reply: FastifyReply,
+	) {
+		const { jobId } = request.params;
+		const result = await this.service.getJobStatus(jobId);
 
 		return reply
 			.status(200)
-			.send(response(result, "Nota fiscal parseada com sucesso"));
+			.send(response(result, "Status do processamento obtido com sucesso"));
 	}
 }
 

@@ -1,7 +1,7 @@
 import { Queue, Worker, Job } from "bullmq";
 import { logger } from "../observability/logger.config";
 import { redis as connection } from "@/config/redis.config";
-import { queueSettings } from "./queue.config";
+import { queuePrefix, queueSettings } from "./queue.config";
 
 export type QueueProcessor = (payload: any, job: Job) => Promise<void>;
 
@@ -13,7 +13,11 @@ export class QueueFactory {
 		if (!this.queues.has(queueName)) {
 			this.queues.set(
 				queueName,
-				new Queue(queueName, { connection, ...queueSettings }),
+				new Queue(queueName, {
+					connection,
+					prefix: queuePrefix,
+					...queueSettings,
+				}),
 			);
 		}
 		return this.queues.get(queueName)!;
@@ -34,7 +38,7 @@ export class QueueFactory {
 					throw err;
 				}
 			},
-			{ connection },
+			{ connection, prefix: queuePrefix },
 		);
 		this.workers.set(queueName, worker);
 		return worker;

@@ -49,7 +49,7 @@ export const buildApp = async () => {
 			},
 			servers: [
 				{
-					url: "http://localhost:3004",
+					url: env.URL || "http://localhost:3000",
 					description: "Servidor local para desenvolvimento",
 				},
 			],

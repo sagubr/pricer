@@ -1,17 +1,15 @@
-import { createPool } from "mysql2/promise";
-import { drizzle } from "drizzle-orm/mysql2";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { env } from "@/config/env.config";
 
-export const pool = createPool({
-	host: env.DB_HOST,
-	port: env.DB_PORT,
-	user: env.DB_USER,
-	password: env.DB_PASS,
-	database: env.DB_NAME,
-	waitForConnections: true,
-	connectionLimit: env.DB_CONNECTION_LIMIT,
-	queueLimit: 0,
-	idleTimeout: env.DB_TIMEOUT,
+export const pool = new Pool({
+	connectionString: env.DATABASE_URL,
+	ssl:
+		env.DB_SSL ?
+			{ rejectUnauthorized: env.DB_SSL_REJECT_UNAUTHORIZED }
+		:	undefined,
+	max: env.DB_CONNECTION_LIMIT,
+	idleTimeoutMillis: env.DB_TIMEOUT,
 });
 
 process.on("SIGINT", async () => {

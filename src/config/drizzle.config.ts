@@ -1,21 +1,27 @@
 import type { Config } from "drizzle-kit";
 import { env } from "./env.config";
 
+if (!env.DATABASE_URL) {
+	throw new Error("DATABASE_URL e obrigatoria para o drizzle-kit.");
+}
+
+const databaseUrl = new URL(env.DATABASE_URL);
+
+if (!databaseUrl.searchParams.has("sslmode")) {
+	databaseUrl.searchParams.set("sslmode", env.DB_SSL ? "require" : "disable");
+}
+
 const drizzle: Config = {
 	schema: "./src/modules/**/*.schema.ts",
 	out: "./drizzle/migrations",
-	dialect: "mysql",
+	dialect: "postgresql",
 	dbCredentials: {
-		host: env.DB_HOST,
-		port: env.DB_PORT,
-		user: env.DB_USER,
-		password: env.DB_PASS,
-		database: env.DB_NAME,
+		url: databaseUrl.toString(),
 	},
 	migrations: {
 		table: "migrations",
 	},
-	verbose: true
+	verbose: true,
 };
 
 export default drizzle;

@@ -1,54 +1,56 @@
 import {
-	mysqlTable,
+	pgSchema,
 	varchar,
 	timestamp,
 	boolean,
 	index,
 	uniqueIndex,
 	bigint,
-	mysqlEnum,
-} from "drizzle-orm/mysql-core";
+	bigserial,
+	pgEnum,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-export const users = mysqlTable(
+const authSchema = pgSchema("auth");
+
+export const loginMethodEnum = authSchema.enum("login_method", [
+	"email",
+	"username",
+	"both",
+]);
+
+export const users = authSchema.table(
 	"users",
 	{
-		id: bigint("id", { mode: "number", unsigned: true })
-			.autoincrement()
-			.primaryKey(),
-		externalId: varchar("external_id", { length: 36 }),
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		externalId: uuid("external_id"),
 		email: varchar("email", { length: 255 }).notNull(),
 		username: varchar("username", { length: 100 }),
 		name: varchar("name", { length: 255 }),
 		passwordHash: varchar("password_hash", { length: 255 }),
-		ssoProvider: varchar("sso_provider", { length: 50 }),
-		ssoExternalId: varchar("sso_external_id", { length: 255 }),
-		loginMethod: mysqlEnum("login_method", ["email", "username", "both"]).default("email").notNull(),
+		loginMethod: loginMethodEnum("login_method").default("email").notNull(),
 		isActive: boolean("is_active").default(true).notNull(),
-		permissionVersion: varchar("permission_version", { length: 36 })
-			.$defaultFn(() => crypto.randomUUID())
-			.notNull(),
+		permissionVersion: uuid("permission_version").defaultRandom().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdateFn(() => new Date())
+			.notNull(),
 	},
 	(table) => [
 		uniqueIndex("users_email_unique").on(table.email),
 		uniqueIndex("users_username_unique").on(table.username),
 		uniqueIndex("users_external_id_unique").on(table.externalId),
-		index("users_sso_idx").on(table.ssoProvider, table.ssoExternalId),
 	],
 );
 
-export const sessions = mysqlTable(
+export const sessions = authSchema.table(
 	"sessions",
 	{
-		id: bigint("id", { mode: "number", unsigned: true })
-			.autoincrement()
-			.primaryKey(),
-		externalId: varchar("external_id", { length: 36 })
-			.notNull()
-			.$defaultFn(() => crypto.randomUUID()),
-		userId: bigint("user_id", { mode: "number", unsigned: true })
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		externalId: uuid("external_id").defaultRandom().notNull(),
+		userId: bigint("user_id", { mode: "number" })
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
 		refreshTokenHash: varchar("refresh_token_hash", {
@@ -70,22 +72,18 @@ export const sessions = mysqlTable(
 	],
 );
 
-export const refreshTokens = mysqlTable(
+export const refreshTokens = authSchema.table(
 	"refresh_tokens",
 	{
-		id: bigint("id", { mode: "number", unsigned: true })
-			.autoincrement()
-			.primaryKey(),
-		externalId: varchar("external_id", { length: 36 })
-			.notNull()
-			.$defaultFn(() => crypto.randomUUID()),
-		sessionId: bigint("session_id", { mode: "number", unsigned: true })
+		id: bigserial("id", { mode: "number" }).primaryKey(),
+		externalId: uuid("external_id").defaultRandom().notNull(),
+		sessionId: bigint("session_id", { mode: "number" })
 			.notNull()
 			.references(() => sessions.id, { onDelete: "cascade" }),
 		tokenHash: varchar("token_hash", { length: 255 }).notNull(),
 		expiresAt: timestamp("expires_at").notNull(),
 		revokedAt: timestamp("revoked_at"),
-		replacedBy: varchar("replaced_by", { length: 36 }),
+		replacedBy: uuid("replaced_by"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [
