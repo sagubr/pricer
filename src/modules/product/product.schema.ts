@@ -12,7 +12,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-// Dimensão confirmada pelo modelo Xenova/all-MiniLM-L6-v2 da API de embedding
 const EMBEDDING_DIMENSIONS = 384;
 
 const vector = customType<{ data: number[]; driverData: string }>({

@@ -8,6 +8,27 @@
       "when": 1773543169650,
       "tag": "0000_chunky_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774756800000,
+      "tag": "0001_product_search_pg_trgm",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774758600000,
+      "tag": "0002_receipt_items_unit_price_generated",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774816161901,
+      "tag": "0003_rapid_the_executioner",
+      "breakpoints": true
     }
   ]
 }

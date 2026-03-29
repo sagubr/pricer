@@ -14,8 +14,8 @@ import {
 	uniqueIndex,
 	index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
-import { globalProducts } from "@/modules/product-catalog/product-catalog.schema";
+import { relations, sql } from "drizzle-orm";
+import { globalProducts } from "@/modules/product/product.schema";
 
 export const invoiceJobStatusEnum = pgEnum("invoice_job_status", [
 	"queued",
@@ -103,7 +103,12 @@ export const receiptItems = pgTable(
 		rawCode: varchar("raw_code", { length: 50 }),
 		quantity: numeric("quantity", { precision: 10, scale: 4 }),
 		unit: varchar("unit", { length: 20 }),
-		unitPrice: numeric("unit_price", { precision: 10, scale: 4 }),
+		unitPrice: numeric("unit_price", { precision: 10, scale: 4 }).generatedAlwaysAs(
+			sql`CASE
+				WHEN "quantity" IS NULL OR "total_amount" IS NULL OR "quantity" = 0 THEN NULL
+				ELSE round(("total_amount" / NULLIF("quantity", 0))::numeric, 4)
+			END`,
+		),
 		totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
 		// Output raw da IA para este item (antes de canonicalização em global_products)
 		normalizedName: varchar("normalized_name", { length: 255 }),

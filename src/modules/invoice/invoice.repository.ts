@@ -7,7 +7,7 @@ import {
 	categories,
 	brands,
 	globalProducts,
-} from "@/modules/product-catalog/product-catalog.schema";
+} from "@/modules/product/product.schema";
 import {
 	establishments,
 	invoiceJobs,
@@ -177,7 +177,6 @@ class InvoiceRepository {
 					rawCode: item.code || null,
 					quantity: this.toNumericString(item.quantity),
 					unit: item.unit || null,
-					unitPrice: this.toNumericString(item.unit_price),
 					totalAmount: this.toNumericString(item.total),
 					globalProductId,
 					normalizedName,

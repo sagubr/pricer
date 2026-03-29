@@ -4,6 +4,7 @@ import notificationRouter from "@/modules/notification/notification.routes";
 import ibgeRouter from "@/modules/ibge/ibge.routes";
 import productNormalizerRouter from "@/modules/product-normalizer/product-normalizer.routes";
 import invoiceRouter from "@/modules/invoice/invoice.routes";
+import productRouter from "@/modules/product/product.routes";
 
 export async function router(
 	fastify: FastifyInstance,
@@ -16,4 +17,5 @@ export async function router(
 		prefix: "/product-normalizer",
 	});
 	await fastify.register(invoiceRouter, { prefix: "/invoices" });
+	await fastify.register(productRouter, { prefix: "/products" });
 }
