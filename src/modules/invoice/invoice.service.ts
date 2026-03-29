@@ -11,6 +11,7 @@ import {
 } from "./drivers/address.parser";
 import { createDriver } from "./invoice.factory";
 import {
+	EnqueueInvoiceBatchResponse,
 	EnqueueInvoiceResponse,
 	InvoiceJobStatusResponse,
 	InvoiceParseJobPayload,
@@ -23,8 +24,29 @@ import { createHash } from "node:crypto";
 import { invoiceRepository } from "./invoice.repository";
 import { NotFoundError } from "@/shared/http/api.error";
 
+const MINUTE_IN_MS = 60 * 1000;
+const PARSE_JOB_OPTIONS = {
+	attempts: 5,
+	backoff: { type: "exponential" as const, delay: 5 * MINUTE_IN_MS },
+};
+const PROCESS_JOB_OPTIONS = {
+	attempts: 5,
+	backoff: { type: "exponential" as const, delay: 15 * MINUTE_IN_MS },
+};
+
 class InvoiceService {
-	async enqueueParse(url: string): Promise<EnqueueInvoiceResponse> {
+	async enqueueParse(
+		url: string | string[],
+	): Promise<EnqueueInvoiceResponse | EnqueueInvoiceBatchResponse> {
+		if (Array.isArray(url)) {
+			const jobs = await Promise.all(url.map((item) => this.enqueueSingleParse(item)));
+			return { jobs };
+		}
+
+		return this.enqueueSingleParse(url);
+	}
+
+	private async enqueueSingleParse(url: string): Promise<EnqueueInvoiceResponse> {
 		const jobId = this.buildJobId(url);
 		await invoiceRepository.upsertJob({
 			jobId,
@@ -38,8 +60,7 @@ class InvoiceService {
 				{ jobId, url },
 				{
 					jobId,
-					attempts: 3,
-					backoff: { type: "exponential", delay: 1000 },
+					...PARSE_JOB_OPTIONS,
 				},
 			);
 		} catch (error: any) {
@@ -89,8 +110,7 @@ class InvoiceService {
 				} satisfies InvoiceProcessJobPayload,
 				{
 					jobId: payload.jobId,
-					attempts: 3,
-					backoff: { type: "exponential", delay: 3000 },
+					...PROCESS_JOB_OPTIONS,
 				},
 			);
 		} catch (error: any) {
@@ -107,6 +127,7 @@ class InvoiceService {
 		await invoiceRepository.updateJobStatus({
 			jobId: payload.jobId,
 			status: "processing",
+			incrementAttempts: true,
 		});
 
 		try {

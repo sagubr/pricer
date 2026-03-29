@@ -11,7 +11,7 @@ function createCacheProvider() {
 	const Provider = providers[env.CACHE_PROVIDER || "node-cache"];
 
 	if (!Provider) {
-		throw new Error("Invalid cache provider");
+		throw new Error(`Invalid cache provider: ${env.CACHE_PROVIDER}`);
 	}
 
 	return new Provider();

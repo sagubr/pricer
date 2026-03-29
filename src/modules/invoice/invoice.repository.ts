@@ -1,6 +1,6 @@
 import { db } from "@/infra/db/db.config";
 import { logger } from "@/infra/observability/logger.config";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { embeddingService } from "@/modules/embedding/embedding.service";
 import {
@@ -101,6 +101,10 @@ class InvoiceRepository {
 			});
 
 			if (existingReceipt) {
+				pendingEmbeddings.push(
+					...(await this.findPendingEmbeddingsForReceipt(tx, existingReceipt.id)),
+				);
+
 				return {
 					receiptId: existingReceipt.id,
 					wasDeduplicated: true,
@@ -184,12 +188,15 @@ class InvoiceRepository {
 			}
 
 			if (itemsToInsert.length > 0) {
-				await tx
+				const insertedItems = await tx
 					.insert(receiptItems)
 					.values(itemsToInsert)
 					.onConflictDoNothing({
 						target: [receiptItems.receiptId, receiptItems.lineIndex],
-					});
+					})
+					.returning({ globalProductId: receiptItems.globalProductId });
+
+				await this.incrementMatchCounts(tx, insertedItems);
 			}
 
 			return {
@@ -390,6 +397,65 @@ class InvoiceRepository {
 		return found?.id || null;
 	}
 
+	private async incrementMatchCounts(
+		tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+		insertedItems: Array<{ globalProductId: number | null }>,
+	) {
+		const matchCounts = new Map<number, number>();
+
+		for (const item of insertedItems) {
+			if (!item.globalProductId) {
+				continue;
+			}
+
+			const currentCount = matchCounts.get(item.globalProductId) || 0;
+			matchCounts.set(item.globalProductId, currentCount + 1);
+		}
+
+		for (const [productId, incrementBy] of matchCounts.entries()) {
+			await tx
+				.update(globalProducts)
+				.set({
+					matchCount: sql`${globalProducts.matchCount} + ${incrementBy}`,
+				})
+				.where(eq(globalProducts.id, productId));
+		}
+	}
+
+	private async findPendingEmbeddingsForReceipt(
+		tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+		receiptId: number,
+	): Promise<Array<{ productId: number; text: string }>> {
+		const rows = await tx
+			.select({
+				productId: globalProducts.id,
+				productName: globalProducts.name,
+				brandName: brands.name,
+			})
+			.from(receiptItems)
+			.innerJoin(globalProducts, eq(receiptItems.globalProductId, globalProducts.id))
+			.leftJoin(brands, eq(globalProducts.brandId, brands.id))
+			.where(
+				and(
+					eq(receiptItems.receiptId, receiptId),
+					isNull(globalProducts.embedding),
+				),
+			);
+
+		const pendingEmbeddingsByProduct = new Map<number, { productId: number; text: string }>();
+
+		for (const row of rows) {
+			if (!pendingEmbeddingsByProduct.has(row.productId)) {
+				pendingEmbeddingsByProduct.set(row.productId, {
+					productId: row.productId,
+					text: `${row.productName} ${row.brandName || ""}`.trim(),
+				});
+			}
+		}
+
+		return Array.from(pendingEmbeddingsByProduct.values());
+	}
+
 	private async persistPendingEmbeddings(
 		pendingEmbeddings: Array<{ productId: number; text: string }>,
 	) {
@@ -397,9 +463,15 @@ class InvoiceRepository {
 			return;
 		}
 
+		const uniquePendingEmbeddings = Array.from(
+			new Map(
+				pendingEmbeddings.map((embedding) => [embedding.productId, embedding]),
+			).values(),
+		);
+
 		try {
 			const vectors = await embeddingService.embedTexts(
-				pendingEmbeddings.map((embedding) => embedding.text),
+				uniquePendingEmbeddings.map((embedding) => embedding.text),
 			);
 
 			for (const [index, vector] of vectors.entries()) {
@@ -410,14 +482,30 @@ class InvoiceRepository {
 				await db
 					.update(globalProducts)
 					.set({ embedding: vector })
-					.where(eq(globalProducts.id, pendingEmbeddings[index].productId));
+					.where(eq(globalProducts.id, uniquePendingEmbeddings[index].productId));
 			}
 		} catch (error) {
+			const isRetryable = this.isRetryableEmbeddingError(error);
 			logger.warn(
-				{ error, items: pendingEmbeddings.length },
+				{ error, items: uniquePendingEmbeddings.length, isRetryable },
 				"Falha ao gerar embeddings externos em lote; produtos salvos sem vetor",
 			);
 		}
+	}
+
+	private isRetryableEmbeddingError(error: unknown): boolean {
+		if (!(error instanceof Error)) {
+			return false;
+		}
+
+		return (
+			error.message.includes("HTTP 429") ||
+			error.message.includes("HTTP 502") ||
+			error.message.includes("HTTP 503") ||
+			error.message.includes("HTTP 504") ||
+			error.name === "AbortError" ||
+			error.message.toLowerCase().includes("fetch")
+		);
 	}
 
 	private buildProductHash(name: string, brand: string | null): string {

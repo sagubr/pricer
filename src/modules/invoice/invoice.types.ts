@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { ProductNormalizerResponse } from "../product-normalizer/product-normalizer.types";
 
 export const parseInvoiceSchema = z.object({
-	url: z.url(),
+	url: z.union([z.url(), z.array(z.url()).min(1)]),
 });
 
 export type InvoiceParseRequest = z.infer<typeof parseInvoiceSchema>;
@@ -87,6 +87,10 @@ export interface InvoiceProcessingResponse {
 export interface EnqueueInvoiceResponse {
 	jobId: string;
 	status: InvoiceJobStatus;
+}
+
+export interface EnqueueInvoiceBatchResponse {
+	jobs: EnqueueInvoiceResponse[];
 }
 
 export interface InvoiceJobStatusResponse {

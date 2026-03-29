@@ -17,10 +17,13 @@ class InvoiceController {
 		const { url } = request.body;
 
 		const result = await this.service.enqueueParse(url);
+		const message = Array.isArray(url)
+			? "Notas fiscais enviadas para processamento"
+			: "Nota fiscal enviada para processamento";
 
 		return reply
 			.status(202)
-			.send(response(result, "Nota fiscal enviada para processamento"));
+			.send(response(result, message));
 	}
 
 	async getStatus(

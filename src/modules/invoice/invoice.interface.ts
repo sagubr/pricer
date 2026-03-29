@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type {
+	EnqueueInvoiceBatchResponse,
 	EnqueueInvoiceResponse,
 	InvoiceJobStatusParams,
 	InvoiceJobStatusResponse,
@@ -7,7 +8,9 @@ import type {
 } from "./invoice.types";
 
 export interface IInvoiceService {
-	enqueueParse(url: string): Promise<EnqueueInvoiceResponse>;
+	enqueueParse(
+		url: string | string[],
+	): Promise<EnqueueInvoiceResponse | EnqueueInvoiceBatchResponse>;
 	getJobStatus(jobId: string): Promise<InvoiceJobStatusResponse>;
 }
 

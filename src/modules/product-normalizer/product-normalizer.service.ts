@@ -25,7 +25,8 @@ class ProductNormalizerService implements IProductNormalizerService {
 		try {
 			const itemsPayload = this.prepareItemsForNormalization(input);
 
-			const initialResponse = await this.generateNormalization(itemsPayload);
+			const initialResponse =
+				await this.generateNormalization(itemsPayload);
 
 			const initialItems = this.composeResultItems(
 				itemsPayload,
@@ -42,12 +43,9 @@ class ProductNormalizerService implements IProductNormalizerService {
 				}));
 
 			const finalItems =
-				(
-					retryPayload.length > 0 &&
-					MAX_NORMALIZATION_ATTEMPTS > 1
-				) ?
+				retryPayload.length > 0 && MAX_NORMALIZATION_ATTEMPTS > 1 ?
 					await this.mergeRetryResults(initialItems, retryPayload)
-				: initialItems;
+				:	initialItems;
 
 			return {
 				data: {
@@ -88,11 +86,14 @@ class ProductNormalizerService implements IProductNormalizerService {
 				2,
 				"retry",
 			);
-			const retriedItemsByIndex = new Map<number, ProductNormalizationResultItem>(
-				retriedItems.map((item) => [item.index, item]),
-			);
+			const retriedItemsByIndex = new Map<
+				number,
+				ProductNormalizationResultItem
+			>(retriedItems.map((item) => [item.index, item]));
 
-			return initialItems.map((item) => retriedItemsByIndex.get(item.index) || item);
+			return initialItems.map(
+				(item) => retriedItemsByIndex.get(item.index) || item,
+			);
 		} catch (retryError) {
 			logger.warn({
 				msg: "Retry da normalizacao falhou; mantendo itens para revisao",
@@ -131,7 +132,8 @@ class ProductNormalizerService implements IProductNormalizerService {
 		isRetry = false,
 	): Promise<{ items: NormalizedProduct[]; tokens: number }> {
 		const prompt = this.buildPrompt(items, isRetry);
-		const response = await aiProvider.generateJson<NormalizedProduct[]>(prompt);
+		const response =
+			await aiProvider.generateJson<NormalizedProduct[]>(prompt);
 
 		return {
 			items: Array.isArray(response.data) ? response.data : [],
@@ -143,38 +145,58 @@ class ProductNormalizerService implements IProductNormalizerService {
 		const retryInstructions =
 			isRetry ?
 				`
-				Esses itens falharam na primeira tentativa por baixa confiabilidade ou resposta insuficiente.
-				Revise com mais rigor, prefira respostas conservadoras e so aumente o confidenceScore se houver evidencia forte no texto.
-			`
+					Itens abaixo falharam na primeira tentativa.
+					Reanalise com mais atenção e aumente confidenceScore apenas se houver evidência clara.
+				`
 			:	"";
 
 		return `
-			Aja como um especialista em catálogo de produtos de supermercados brasileiros.
-			Converta as descricoes brutas de itens de Nota Fiscal (NFe) em um array JSON estruturado.
-			${retryInstructions}
-			Regras:
-			- Remova abreviacoes tecnicas de mercado.
-			- Se a marca nao estiver clara, retorne "Propria" ou "Nao identificada".
-			- Retorne exatamente um objeto por item recebido.
-			- Preserve o index recebido em cada item.
-			- confidenceScore deve ser um numero entre 0 e 1.
-			- Retorne apenas JSON valido, sem markdown.
-			- Retorne apenas os campos: index, name, brand, category, confidenceScore.
+			Você é especialista em catalogação de produtos de supermercados brasileiros.
 
-			Itens Brutos:
+			Sua tarefa é normalizar descrições curtas de itens de nota fiscal (NFe).
+
+			Regras:
+			- Expanda abreviações comuns de mercado.
+			- Identifique marca quando possível.
+			- Se não houver marca clara, use "Nao identificada".
+			- Mantenha exatamente o index recebido.
+			- confidenceScore entre 0 e 1.
+			- Retorne apenas JSON válido.
+
+			Exemplos:
+
+			Entrada:
+			[
+			{"index":0,"description":"BEB ENERG MONS P 473"},
+			{"index":1,"description":"BISC RECH TRAK 126G"}
+			]
+
+			Saída:
+			[
+			{
+			"index":0,
+			"name":"Bebida Energetica Monster 473ml",
+			"brand":"Monster",
+			"category":"Energetico",
+			"confidenceScore":0.95
+			},
+			{
+			"index":1,
+			"name":"Biscoito Recheado Trakinas 126g",
+			"brand":"Trakinas",
+			"category":"Biscoito",
+			"confidenceScore":0.94
+			}
+			]
+
+			${retryInstructions}
+
+			Agora processe:
+
 			${JSON.stringify(items)}
 
-			JSON esperado:
-			[
-				{
-					"index": number,
-					"name": "string",
-					"brand": "string",
-					"category": "string",
-					"confidenceScore": number
-				}
-			]
-		`;
+			Retorne somente o JSON final.
+			`;
 	}
 
 	private composeResultItems(
@@ -201,7 +223,10 @@ class ProductNormalizerService implements IProductNormalizerService {
 				normalizedItem?.confidenceScore,
 			);
 			const rejected = confidenceScore < MINIMUM_CONFIDENCE_SCORE;
-			const normalizedText = this.buildNormalizedText(normalizedItem, input.text);
+			const normalizedText = this.buildNormalizedText(
+				normalizedItem,
+				input.text,
+			);
 
 			return {
 				index: input.index,
@@ -221,7 +246,8 @@ class ProductNormalizerService implements IProductNormalizerService {
 		normalizedItem: NormalizedProduct | undefined,
 		fallbackText: string,
 	) {
-		const rawText = `${normalizedItem?.name || fallbackText} ${normalizedItem?.brand || ""}`.trim();
+		const rawText =
+			`${normalizedItem?.name || fallbackText} ${normalizedItem?.brand || ""}`.trim();
 		return rawText || fallbackText;
 	}
 
