@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type {
+	InvoiceItemData,
 	ProductSearchCandidate,
 	ProductSemanticCandidate,
 	SearchProductsQuery,
@@ -20,6 +21,8 @@ export interface IProductRepository {
 		category?: string;
 		limit: number;
 	}): Promise<ProductSemanticCandidate[]>;
+
+	getInvoiceItemsByProductId(productId: number, limit?: number): Promise<InvoiceItemData[]>;
 }
 
 export interface IProductService {

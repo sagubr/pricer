@@ -4,6 +4,7 @@ import type { IProductRepository, IProductService } from "./product.interface";
 import { productRepository } from "./product.repository";
 import type {
 	ProductSearchItem,
+	ProductWithInvoices,
 	SearchProductsQuery,
 	SearchProductsResponse,
 } from "./product.types";
@@ -120,8 +121,15 @@ class ProductService implements IProductService {
 			input.offset + input.limit,
 		);
 
+		const itemsWithInvoices: ProductWithInvoices[] = await Promise.all(
+			paginatedItems.map(async (item) => ({
+				...item,
+				invoices: await this.repository.getInvoiceItemsByProductId(item.id),
+			})),
+		);
+
 		return {
-			items: paginatedItems,
+			items: itemsWithInvoices,
 			pagination: {
 				limit: input.limit,
 				offset: input.offset,

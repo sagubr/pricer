@@ -7,6 +7,12 @@ export const parseInvoiceSchema = z.object({
 
 export type InvoiceParseRequest = z.infer<typeof parseInvoiceSchema>;
 
+export const reprocessInvoicesSchema = z.object({
+	url: z.union([z.url(), z.array(z.url()).min(1)]),
+});
+
+export type ReprocessInvoicesRequest = z.infer<typeof reprocessInvoicesSchema>;
+
 export const invoiceJobStatusEnumSchema = z.enum([
 	"queued",
 	"parsing",

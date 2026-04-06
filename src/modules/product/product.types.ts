@@ -22,8 +22,20 @@ export interface ProductSearchItem {
 	textScore: number;
 }
 
+export interface InvoiceItemData {
+	receiptId: number;
+	establishmentName: string;
+	rawDescription: string;
+	unitPrice: number;
+	emittedAt: Date | null;
+}
+
+export interface ProductWithInvoices extends ProductSearchItem {
+	invoices: InvoiceItemData[];
+}
+
 export interface SearchProductsResponse {
-	items: ProductSearchItem[];
+	items: ProductWithInvoices[];
 	pagination: {
 		limit: number;
 		offset: number;

@@ -75,17 +75,7 @@ export class StandardParser {
 				]
 			:	[];
 
-		const metadata = {
-			model: $("td")
-				.filter((_, el) => $(el).text() === "65")
-				.text(),
-			series: $("td")
-				.filter((_, el) => $(el).text() === "60")
-				.text(),
-			number: $("td")
-				.filter((_, el) => $(el).text() === "38512")
-				.text(),
-		};
+		const metadata = this.extractMetadata($);
 
 		return {
 			issuer: {
@@ -99,5 +89,92 @@ export class StandardParser {
 			total,
 			metadata,
 		};
+	}
+
+	private extractMetadata($: ReturnType<typeof cheerio.load>) {
+		const metadata: {
+			model?: string;
+			series?: string;
+			number?: string;
+			emittedAt?: string;
+			protocol?: string;
+			accessKey?: string;
+		} = {};
+
+		const generalInfoTable = $("table")
+			.filter((_, table) => {
+				const headerText = $(table)
+					.find("thead th")
+					.map((__, th) => $(th).text().trim().toLowerCase())
+					.get()
+					.join("|");
+
+				return (
+					headerText.includes("modelo") &&
+					headerText.includes("série") &&
+					headerText.includes("número") &&
+					headerText.includes("data emissão")
+				);
+			})
+			.first();
+
+		if (generalInfoTable.length > 0) {
+			const cells = generalInfoTable
+				.find("tbody tr")
+				.first()
+				.find("td")
+				.map((_, td) => $(td).text().trim())
+				.get();
+
+			metadata.model = cells[0] || undefined;
+			metadata.series = cells[1] || undefined;
+			metadata.number = cells[2] || undefined;
+
+			const rawEmittedAt = cells[3] || undefined;
+			if (rawEmittedAt) {
+				metadata.emittedAt =
+					this.parseBrazilianDateTime(rawEmittedAt) || rawEmittedAt;
+			}
+		}
+
+		const protocolValue = $("table")
+			.filter((_, table) =>
+				$(table)
+					.find("thead th")
+					.toArray()
+					.some((th) => $(th).text().trim().toLowerCase() === "protocolo"),
+			)
+			.first()
+			.find("tbody tr td")
+			.first()
+			.text()
+			.trim();
+
+		if (protocolValue) {
+			metadata.protocol = protocolValue;
+		}
+
+		const rawAccessKey = $("#collapseTwo td").first().text().trim();
+		const normalizedAccessKey = rawAccessKey.replace(/\D/g, "");
+		if (normalizedAccessKey.length === 44) {
+			metadata.accessKey = normalizedAccessKey;
+		}
+
+		return metadata;
+	}
+
+	private parseBrazilianDateTime(value: string): string | null {
+		const match = value.match(
+			/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+		);
+
+		if (!match) {
+			return null;
+		}
+
+		const [, day, month, year, hour = "00", minute = "00", second = "00"] =
+			match;
+
+		return `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
 	}
 }

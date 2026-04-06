@@ -5,6 +5,7 @@ import { invoiceService } from "./invoice.service";
 import type {
 	InvoiceJobStatusParams,
 	InvoiceParseRequest,
+	ReprocessInvoicesRequest,
 } from "./invoice.types";
 
 class InvoiceController {
@@ -24,6 +25,18 @@ class InvoiceController {
 		return reply
 			.status(202)
 			.send(response(result, message));
+	}
+
+	async reprocess(
+		request: FastifyRequest<{ Body: ReprocessInvoicesRequest }>,
+		reply: FastifyReply,
+	) {
+		const { url } = request.body;
+		const result = await this.service.reprocessSaved(url);
+
+		return reply
+			.status(202)
+			.send(response(result, "Notas fiscais reenfileiradas para reprocessamento"));
 	}
 
 	async getStatus(

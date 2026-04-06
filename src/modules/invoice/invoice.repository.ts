@@ -1,6 +1,6 @@
 import { db } from "@/infra/db/db.config";
 import { logger } from "@/infra/observability/logger.config";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { embeddingService } from "@/modules/embedding/embedding.service";
 import {
@@ -41,8 +41,71 @@ class InvoiceRepository {
 					sourceUrl: input.sourceUrl,
 					status: input.status,
 					errorMessage: null,
+					receiptId: null,
+					attempts: 0,
 				},
 			});
+	}
+
+	async findReceiptsBySourceUrls(sourceUrls: string[]) {
+		if (sourceUrls.length === 0) {
+			return [];
+		}
+
+		return db
+			.select({
+				id: receipts.id,
+				sourceUrl: receipts.sourceUrl,
+			})
+			.from(receipts)
+			.where(inArray(receipts.sourceUrl, sourceUrls));
+	}
+
+	async resetReceiptForReprocess(receiptId: number): Promise<void> {
+		await db.transaction(async (tx) => {
+			const productCounts = await tx
+				.select({
+					productId: receiptItems.globalProductId,
+					matchCount: sql<number>`count(*)`,
+				})
+				.from(receiptItems)
+				.where(eq(receiptItems.receiptId, receiptId))
+				.groupBy(receiptItems.globalProductId);
+
+			const productIds = productCounts
+				.map((item) => item.productId)
+				.filter((productId): productId is number => productId !== null);
+
+			for (const item of productCounts) {
+				if (!item.productId) {
+					continue;
+				}
+
+				await tx
+					.update(globalProducts)
+					.set({
+						matchCount: sql`greatest(${globalProducts.matchCount} - ${item.matchCount}, 0)`,
+					})
+					.where(eq(globalProducts.id, item.productId));
+			}
+
+			await tx.delete(receipts).where(eq(receipts.id, receiptId));
+
+			if (productIds.length > 0) {
+				await tx
+					.delete(globalProducts)
+					.where(
+						and(
+							inArray(globalProducts.id, productIds),
+							sql`not exists (
+								select 1
+								from ${receiptItems}
+								where ${receiptItems.globalProductId} = ${globalProducts.id}
+							)`,
+						),
+					);
+			}
+		});
 	}
 
 	async updateJobStatus(input: {
@@ -528,8 +591,26 @@ class InvoiceRepository {
 		if (!value) {
 			return null;
 		}
-		const date = new Date(value);
-		return Number.isNaN(date.getTime()) ? null : date;
+
+		const parsed = new Date(value);
+		if (!Number.isNaN(parsed.getTime())) {
+			return parsed;
+		}
+
+		const match = value.match(
+			/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+		);
+
+		if (!match) {
+			return null;
+		}
+
+		const [, day, month, year, hour = "00", minute = "00", second = "00"] =
+			match;
+		const isoWithOffset = `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
+		const normalizedDate = new Date(isoWithOffset);
+
+		return Number.isNaN(normalizedDate.getTime()) ? null : normalizedDate;
 	}
 
 	private toNumericString(value: number | null | undefined): string | null {

@@ -1,10 +1,12 @@
 import { db } from "@/infra/db/db.config";
 import { and, asc, desc, ilike, isNotNull, sql, type SQL } from "drizzle-orm";
 import { brands, categories, globalProducts } from "./product.schema";
+import { establishments, receiptItems, receipts } from "@/modules/invoice/invoice.schema";
 import type {
 	IProductRepository,
 } from "./product.interface";
 import type {
+	InvoiceItemData,
 	ProductSearchCandidate,
 	ProductSemanticCandidate,
 } from "./product.types";
@@ -114,6 +116,31 @@ class ProductRepository implements IProductRepository {
 				semanticScore: this.clampScore(row.semanticScore),
 			}))
 			.filter((row) => row.semanticScore > 0);
+	}
+
+	async getInvoiceItemsByProductId(productId: number, limit = 10): Promise<InvoiceItemData[]> {
+		const rows = await db
+			.select({
+				receiptId: receiptItems.receiptId,
+				establishmentName: establishments.name,
+				rawDescription: receiptItems.rawDescription,
+				unitPrice: receiptItems.unitPrice,
+				emittedAt: receipts.emittedAt,
+			})
+			.from(receiptItems)
+			.innerJoin(receipts, sql`${receiptItems.receiptId} = ${receipts.id}`)
+			.innerJoin(establishments, sql`${receipts.establishmentId} = ${establishments.id}`)
+			.where(sql`${receiptItems.globalProductId} = ${productId}`)
+			.orderBy(desc(receipts.emittedAt), desc(receiptItems.createdAt))
+			.limit(limit);
+
+		return rows.map((row) => ({
+			receiptId: row.receiptId,
+			establishmentName: row.establishmentName,
+			rawDescription: row.rawDescription,
+			unitPrice: parseFloat(String(row.unitPrice || 0)),
+			emittedAt: row.emittedAt,
+		}));
 	}
 
 	private clampScore(value: unknown): number {

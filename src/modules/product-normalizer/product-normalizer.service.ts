@@ -1,4 +1,5 @@
 import { logger } from "@/infra/observability/logger.config";
+import { env } from "@/config/env.config";
 import type { IProductNormalizerService } from "./product-normalizer.interface";
 import type {
 	NormalizedProduct,
@@ -131,6 +132,19 @@ class ProductNormalizerService implements IProductNormalizerService {
 		items: ProductInputItem[],
 		isRetry = false,
 	): Promise<{ items: NormalizedProduct[]; tokens: number }> {
+		if (!env.IA_NORMALIZATION_ENABLED) {
+			logger.warn({
+				msg: "Normalizacao por IA desabilitada; aplicando fallback",
+				isRetry,
+				itemsCount: items.length,
+			});
+
+			return {
+				items: this.buildFallbackNormalization(items),
+				tokens: 0,
+			};
+		}
+
 		const prompt = this.buildPrompt(items, isRetry);
 		const response =
 			await aiProvider.generateJson<NormalizedProduct[]>(prompt);
@@ -139,6 +153,18 @@ class ProductNormalizerService implements IProductNormalizerService {
 			items: Array.isArray(response.data) ? response.data : [],
 			tokens: response.usage?.completionTokens || 0,
 		};
+	}
+
+	private buildFallbackNormalization(
+		items: ProductInputItem[],
+	): NormalizedProduct[] {
+		return items.map((item) => ({
+			index: item.index,
+			name: item.text,
+			brand: "Não identificada",
+			category: "Não identificada",
+			confidenceScore: 0,
+		}));
 	}
 
 	private buildPrompt(items: ProductInputItem[], isRetry: boolean) {

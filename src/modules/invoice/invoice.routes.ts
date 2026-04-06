@@ -6,6 +6,8 @@ import {
 	InvoiceParseRequest,
 	invoiceJobStatusParamsSchema,
 	parseInvoiceSchema,
+	reprocessInvoicesSchema,
+	type ReprocessInvoicesRequest,
 } from "./invoice.types";
 
 export default async function invoiceRouter(fastify: FastifyInstance) {
@@ -22,6 +24,19 @@ export default async function invoiceRouter(fastify: FastifyInstance) {
 			},
 		},
 		(request, reply) => controller.parse(request, reply),
+	);
+
+	app.post<{ Body: ReprocessInvoicesRequest }>(
+		"/reprocess",
+		{
+			schema: {
+				body: reprocessInvoicesSchema,
+				tags: ["Invoices"],
+				description:
+					"Apaga registros antigos das notas salvas e reenfileira o processamento",
+			},
+		},
+		(request, reply) => controller.reprocess(request, reply),
 	);
 
 	app.get<{ Params: InvoiceJobStatusParams }>(

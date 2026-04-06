@@ -22,7 +22,7 @@ import {
 import type { ProductNormalizationInput } from "../product-normalizer/product-normalizer.types";
 import { createHash } from "node:crypto";
 import { invoiceRepository } from "./invoice.repository";
-import { NotFoundError } from "@/shared/http/api.error";
+import { ConflictError, NotFoundError } from "@/shared/http/api.error";
 
 const MINUTE_IN_MS = 60 * 1000;
 const PARSE_JOB_OPTIONS = {
@@ -46,8 +46,40 @@ class InvoiceService {
 		return this.enqueueSingleParse(url);
 	}
 
+	async reprocessSaved(url: string | string[]): Promise<EnqueueInvoiceBatchResponse> {
+		const urlList = Array.isArray(url) ? url : [url];
+		const uniqueUrls = Array.from(new Set(urlList));
+		const savedReceipts = await invoiceRepository.findReceiptsBySourceUrls(uniqueUrls);
+		const receiptByUrl = new Map(
+			savedReceipts.map((receipt) => [receipt.sourceUrl, receipt]),
+		);
+
+		const missingUrls = uniqueUrls.filter((item) => !receiptByUrl.has(item));
+
+		if (missingUrls.length > 0) {
+			throw new NotFoundError(
+				`Notas fiscais não encontradas para reprocessamento nas URLs: ${missingUrls.join(", ")}`,
+			);
+		}
+
+		for (const item of uniqueUrls) {
+			const receipt = receiptByUrl.get(item);
+			if (!receipt) {
+				continue;
+			}
+
+			await invoiceRepository.resetReceiptForReprocess(receipt.id);
+		}
+
+		const jobs = await Promise.all(uniqueUrls.map((item) => this.enqueueSingleParse(item)));
+
+		return { jobs };
+	}
+
 	private async enqueueSingleParse(url: string): Promise<EnqueueInvoiceResponse> {
 		const jobId = this.buildJobId(url);
+		await this.clearExistingInvoiceJobs(jobId);
+
 		await invoiceRepository.upsertJob({
 			jobId,
 			sourceUrl: url,
@@ -73,6 +105,29 @@ class InvoiceService {
 			jobId,
 			status: "queued",
 		};
+	}
+
+	private async clearExistingInvoiceJobs(jobId: string): Promise<void> {
+		const queues = [
+			QueueFactory.getQueue(INVOICE_PARSE_QUEUE),
+			QueueFactory.getQueue(INVOICE_PROCESS_QUEUE),
+		];
+
+		for (const queue of queues) {
+			const existingJob = await queue.getJob(jobId);
+			if (!existingJob) {
+				continue;
+			}
+
+			const state = await existingJob.getState();
+			if (state === "active") {
+				throw new ConflictError(
+					`Não foi possível reenfileirar: job ${jobId} ainda está em processamento`,
+				);
+			}
+
+			await existingJob.remove();
+		}
 	}
 
 	async getJobStatus(jobId: string): Promise<InvoiceJobStatusResponse> {

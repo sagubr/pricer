@@ -42,6 +42,7 @@ const envSchema = z.object({
 	EMAIL_BATCH_SIZE: z.coerce.number().default(10),
 	SENTRY_DSN: z.url("SENTRY_DSN deve ser uma URL válida").optional(),
 	IA_PROVIDER: z.enum(["gemini", "groq"]).default("gemini"),
+	IA_NORMALIZATION_ENABLED: z.coerce.boolean().default(true),
 	GEMINI_API_KEY: z.string().optional(),
 	GROQ_API_KEY: z.string().optional(),
 	URL: z.url("URL deve ser uma URL válida").optional(),
