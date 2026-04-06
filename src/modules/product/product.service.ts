@@ -17,6 +17,7 @@ const WEIGHTS = {
 
 const EXTRA_CANDIDATES = 20;
 const MAX_CANDIDATE_POOL = 100;
+const MINIMUM_SEARCH_SCORE = 0.2;
 
 class ProductService implements IProductService {
 	constructor(private readonly repository: IProductRepository = productRepository) {}
@@ -116,7 +117,11 @@ class ProductService implements IProductService {
 			return a.name.localeCompare(b.name, "pt-BR");
 		});
 
-		const paginatedItems = rankedItems.slice(
+		const filteredItems = rankedItems.filter(
+			(item) => item.score >= MINIMUM_SEARCH_SCORE,
+		);
+
+		const paginatedItems = filteredItems.slice(
 			input.offset,
 			input.offset + input.limit,
 		);
@@ -133,7 +138,7 @@ class ProductService implements IProductService {
 			pagination: {
 				limit: input.limit,
 				offset: input.offset,
-				hasMore: rankedItems.length > input.offset + input.limit,
+				hasMore: filteredItems.length > input.offset + input.limit,
 			},
 		};
 	}
