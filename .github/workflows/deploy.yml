@@ -1,0 +1,30 @@
+name: Deploy na VPS
+on:
+  push:
+    branches:
+      - main  # A pipeline roda sempre que você der push na branch 'main'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Conectar na VPS e fazer Deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # Entra na pasta da api
+            cd /opt/app/api/pricer
+            
+            # Puxa a versão mais nova do código
+            git pull origin main
+            
+            # Faz o build da imagem (o Docker vai ler o Dockerfile que está aí)
+            docker compose build api-pricer
+            
+            # Sobes o container atualizado
+            docker compose up -d api-pricer
