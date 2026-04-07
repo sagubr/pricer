@@ -3,6 +3,7 @@ import { embeddingService } from "@/modules/embedding/embedding.service";
 import type { IProductRepository, IProductService } from "./product.interface";
 import { productRepository } from "./product.repository";
 import type {
+	ListProductsQuery,
 	ProductSearchItem,
 	ProductWithInvoices,
 	SearchProductsQuery,
@@ -22,6 +23,40 @@ const MINIMUM_SEARCH_SCORE = 0.2;
 class ProductService implements IProductService {
 	constructor(private readonly repository: IProductRepository = productRepository) {}
 
+	async list(input: ListProductsQuery): Promise<SearchProductsResponse> {
+		const rows = await this.repository.list({
+			limit: input.limit + 1,
+			offset: input.offset,
+		});
+
+		const hasMore = rows.length > input.limit;
+		const paginatedRows = rows.slice(0, input.limit);
+
+		const items: ProductWithInvoices[] = await Promise.all(
+			paginatedRows.map(async (row) => ({
+				id: row.id,
+				externalId: row.externalId,
+				name: row.name,
+				brand: row.brand,
+				category: row.category,
+				matchCount: row.matchCount,
+				score: 0,
+				semanticScore: 0,
+				textScore: 0,
+				invoices: await this.repository.getInvoiceItemsByProductId(row.id),
+			})),
+		);
+
+		return {
+			items,
+			pagination: {
+				limit: input.limit,
+				offset: input.offset,
+				hasMore,
+			},
+		};
+	}
+
 	async search(input: SearchProductsQuery): Promise<SearchProductsResponse> {
 		const query = input.q.trim();
 		const candidateLimit = Math.min(
@@ -32,8 +67,6 @@ class ProductService implements IProductService {
 		const [textCandidates, queryEmbedding] = await Promise.all([
 			this.repository.searchByText({
 				query,
-				brand: input.brand,
-				category: input.category,
 				limit: candidateLimit,
 			}),
 			this.tryGenerateQueryEmbedding(query),
@@ -43,8 +76,6 @@ class ProductService implements IProductService {
 			queryEmbedding ?
 				await this.repository.searchBySemantic({
 					vector: queryEmbedding,
-					brand: input.brand,
-					category: input.category,
 					limit: candidateLimit,
 				})
 			:	[];

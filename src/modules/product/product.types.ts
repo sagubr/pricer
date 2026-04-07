@@ -2,13 +2,18 @@ import { z } from "zod";
 
 export const searchProductsQuerySchema = z.object({
 	q: z.string().trim().min(1).max(120),
-	brand: z.string().trim().min(1).max(100).optional(),
-	category: z.string().trim().min(1).max(100).optional(),
 	limit: z.coerce.number().int().min(1).max(50).default(20),
 	offset: z.coerce.number().int().min(0).default(0),
 });
 
 export type SearchProductsQuery = z.infer<typeof searchProductsQuerySchema>;
+
+export const listProductsQuerySchema = z.object({
+	limit: z.coerce.number().int().min(1).max(100).default(20),
+	offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
 
 export interface ProductSearchItem {
 	id: number;
@@ -61,4 +66,22 @@ export interface ProductSemanticCandidate {
 	category: string | null;
 	matchCount: number;
 	semanticScore: number;
+}
+
+export interface ProductListItem {
+	id: number;
+	externalId: string;
+	name: string;
+	brand: string | null;
+	category: string | null;
+	matchCount: number;
+}
+
+export interface ListProductsResponse {
+	items: ProductListItem[];
+	pagination: {
+		limit: number;
+		offset: number;
+		hasMore: boolean;
+	};
 }

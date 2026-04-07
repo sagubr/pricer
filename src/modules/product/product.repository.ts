@@ -7,15 +7,44 @@ import type {
 } from "./product.interface";
 import type {
 	InvoiceItemData,
+	ProductListItem,
 	ProductSearchCandidate,
 	ProductSemanticCandidate,
 } from "./product.types";
 
 class ProductRepository implements IProductRepository {
+	async list(input: {
+		limit: number;
+		offset: number;
+	}): Promise<ProductListItem[]> {
+		const rows = await db
+			.select({
+				id: globalProducts.id,
+				externalId: globalProducts.externalId,
+				name: globalProducts.name,
+				brand: brands.name,
+				category: categories.name,
+				matchCount: globalProducts.matchCount,
+			})
+			.from(globalProducts)
+			.leftJoin(brands, sql`${globalProducts.brandId} = ${brands.id}`)
+			.leftJoin(categories, sql`${globalProducts.categoryId} = ${categories.id}`)
+			.orderBy(asc(globalProducts.name), asc(globalProducts.id))
+			.limit(input.limit)
+			.offset(input.offset);
+
+		return rows.map((row) => ({
+			id: row.id,
+			externalId: row.externalId,
+			name: row.name,
+			brand: row.brand,
+			category: row.category,
+			matchCount: row.matchCount,
+		}));
+	}
+
 	async searchByText(input: {
 		query: string;
-		brand?: string;
-		category?: string;
 		limit: number;
 	}): Promise<ProductSearchCandidate[]> {
 		const normalizedQuery = input.query.trim();
@@ -32,14 +61,6 @@ class ProductRepository implements IProductRepository {
 				OR coalesce(${brands.name}, '') ILIKE ${queryPattern}
 			)`,
 		];
-
-		if (input.brand) {
-			filters.push(ilike(brands.name, `%${input.brand.trim()}%`));
-		}
-
-		if (input.category) {
-			filters.push(ilike(categories.name, `%${input.category.trim()}%`));
-		}
 
 		const rows = await db
 			.select({
@@ -71,22 +92,12 @@ class ProductRepository implements IProductRepository {
 
 	async searchBySemantic(input: {
 		vector: number[];
-		brand?: string;
-		category?: string;
 		limit: number;
 	}): Promise<ProductSemanticCandidate[]> {
 		const vectorLiteral = `[${input.vector.join(",")}]`;
 		const cosineDistance = sql<number>`(${globalProducts.embedding} <=> ${vectorLiteral}::vector)`;
 		const semanticScore = sql<number>`greatest(0, 1 - ${cosineDistance})`;
 		const filters: SQL[] = [isNotNull(globalProducts.embedding)];
-
-		if (input.brand) {
-			filters.push(ilike(brands.name, `%${input.brand.trim()}%`));
-		}
-
-		if (input.category) {
-			filters.push(ilike(categories.name, `%${input.category.trim()}%`));
-		}
 
 		const rows = await db
 			.select({
