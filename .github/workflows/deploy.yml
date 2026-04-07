@@ -2,7 +2,7 @@ name: Deploy na VPS
 on:
   push:
     branches:
-      - main  # A pipeline roda sempre que você der push na branch 'main'
+      - master  # A pipeline roda sempre que você der push na branch 'master'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -21,7 +21,7 @@ jobs:
             cd /opt/app/api/pricer
             
             # Puxa a versão mais nova do código
-            git pull origin main
+            git pull origin master
             
             # Faz o build da imagem (o Docker vai ler o Dockerfile que está aí)
             docker compose build api-pricer
